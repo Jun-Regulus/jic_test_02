@@ -1,0 +1,11 @@
+[package]
+name = "jic_test_02"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+regex = "1"
+lazy_static = "1"
+serde_json = "1"
+anyhow = "1"
+itertools = "0.10"
