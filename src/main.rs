@@ -17,6 +17,7 @@ enum ConfigValue {
 lazy_static! {
     static ref CONFIG_REGEX: Regex = Regex::new(r"^\s*([a-zA-Z0-9._-]+)\s*=\s*(.+?)\s*$").unwrap();
     static ref COMMENT_REGEX: Regex = Regex::new(r"^\s*#").unwrap();
+    static ref SCHEMA_REGEX: Regex = Regex::new(r"^\s*([a-zA-Z0-9._-]+)\s*->\s*(string|bool|map)\s*$").unwrap();
 }
 
 fn parse_config_file(file_path: &Path) -> io::Result<HashMap<String, ConfigValue>> {
@@ -91,8 +92,7 @@ fn format_as_json(config: &HashMap<String, ConfigValue>) -> serde_json::Value {
     serde_json::Value::Object(json_obj)
 }
 
-fn validate_config(config: &HashMap<String, ConfigValue>, schema: &HashMap<String, String>) -> bool {
-    let mut valid = true;
+fn validate_config(config: &HashMap<String, ConfigValue>, schema: &HashMap<String, String>) {
     for (key, expected_type) in schema {
         if let Some(value) = config.get(key) {
             match (expected_type.as_str(), value) {
@@ -101,14 +101,12 @@ fn validate_config(config: &HashMap<String, ConfigValue>, schema: &HashMap<Strin
                 ("map", ConfigValue::Map(_)) => (),
                 _ => {
                     eprintln!("キー '{}' の値が期待される型 '{}' と一致しません", key, expected_type);
-                    valid = false;
                 }
             }
         } else {
             println!("警告: キー '{}' が存在しません", key);
         }
     }
-    valid
 }
 
 fn load_schema(file_path: &Path) -> io::Result<HashMap<String, String>> {
@@ -122,7 +120,7 @@ fn load_schema(file_path: &Path) -> io::Result<HashMap<String, String>> {
             continue; // コメント行・空行をスキップ
         }
 
-        if let Some(captures) = CONFIG_REGEX.captures(trimmed_line) {
+        if let Some(captures) = SCHEMA_REGEX.captures(trimmed_line) {
             let key = captures[1].to_string();
             let value_type = captures[2].trim().to_string();
             schema.insert(key, value_type);
@@ -148,11 +146,8 @@ fn main() {
                 println!("=== ファイル: {} ===", file.display());
                 match parse_config_file(file) {
                     Ok(config) => {
-                        if validate_config(&config, &schema) {
-                            println!("{}", serde_json::to_string_pretty(&format_as_json(&config)).unwrap());
-                        } else {
-                            eprintln!("エラー: 設定ファイルの検証に失敗しました: {}", file.display());
-                        }
+                        validate_config(&config, &schema);
+                        println!("{}", serde_json::to_string_pretty(&format_as_json(&config)).unwrap());
                     }
                     Err(e) => eprintln!("エラー: ファイルの読み込みに失敗しました: {} ({})", e, file.display()),
                 }
